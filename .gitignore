@@ -1,0 +1,4 @@
+# OS generated files and directories
+__pycache__/
+.DS_Store
+
