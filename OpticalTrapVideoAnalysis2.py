@@ -10,7 +10,7 @@ Author: Christopher Dydula, University of Toronto   -   18 May 2011
    Last Modification:  20 June 2011 by Christopher Dydula
 '''
 
-import os
+import os, json
 import PILBeadTracking2 as pbt
 import TrapAnalysis as ta
 import numpy as np
@@ -33,6 +33,33 @@ def get_dir(root):
     directory.set(tfd.askdirectory(
         parent=root,
         title='Select directory to save frames to...'))
+
+def write_analysis_info(k, delk):
+    # Write out:
+        # trap stiffness, error
+        # analysis params (spot diameter, min brightness, max displacement, start frame, stop frame, T, delT, pize, delpsize)
+        # file path (TIFF) and output directory
+    analysis_info = {
+        'trap_stiffness_N_m'       : k,
+        'delta_trap_stiffness_N_m' : delk,
+        'video_path'               : Tiff_file_name.get(),
+        'start_frame'              : start_frame.get(),
+        'stop_frame'               : stop_frame.get(),
+        'spot_radius'              : spot_size.get(),
+        'max_displacement'         : max_displacement.get(),
+        'min_net_brightness'       : min_net_brightness.get(),
+        'frame_directory'          : directory.get(),
+        'temperature_K'            : temp.get(),
+        'delta_temperature_K'      : deltemp.get(),
+        'pixel_size_um'            : psize.get(),
+        'delta_pixel_size_um'      : delpsize.get(),
+    }
+
+    with open(os.path.join(directory.get(), 'analysis_info.txt'), 'w') as f:
+        f.write(
+            json.dumps(analysis_info, indent=4, separators=(',', ': '))
+        ) # use json.loads to do the reverse
+
 
 def analyze():
     '''Collect the x and y positions of the bead to be tracked in each frame
@@ -111,6 +138,9 @@ def analyze():
 
     figs[0].savefig(os.path.join(directory.get(), 'fig1.png'))
     figs[1].savefig(os.path.join(directory.get(), 'fig2.png'))
+
+    # Write out analysis info for ease of reproducibility
+    write_analysis_info(r, delta)
 
     #dialog_text.set("The trap stiffness in the x direction is %9.4e N/m" % x1)
     #dialog_text.set(dialog_text.get()
