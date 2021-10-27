@@ -312,11 +312,11 @@ if __name__ == "__main__":
     temp = tk.DoubleVar()
     temp.set(293.15)
     psize = tk.DoubleVar()
-    psize.set(0.069) # approx 1/14.5 (see comment in ta.analyze())
+    psize.set(0.0619) # approx 7/113
     deltemp = tk.DoubleVar()
     deltemp.set(5)
     delpsize = tk.DoubleVar()
-    delpsize.set(0.00143) # approx 0.3/(14.5**2) (uncertainty associated with px_per_um of 14.5 +/- 0.3 px)
+    delpsize.set(0.0027) # approx |7*5/(113**2)|
     # add additional variables for trap analysis here
 
     trap_frame = tk.Frame(outer_frame)

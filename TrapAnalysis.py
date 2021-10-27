@@ -131,10 +131,12 @@ def analyze(x, y, temp, psize_um, deltemp, delpsize_um):
     delpsize_m = delpsize_um * 1e-6
 
     # zero-mean postions in metres
+    x -= np.mean(x)
+    y -= np.mean(y)
     x_m = x * psize_m
     y_m = y * psize_m
-    x_m -= np.mean(x_m)
-    y_m -= np.mean(y_m)
+    # x_m -= np.mean(x_m)
+    # y_m -= np.mean(y_m)
 
     # use the standard deviations of x, y as proxies for the pixel uncertainties
     errxpx = np.std(x)
