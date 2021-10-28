@@ -10,11 +10,13 @@ Author: Christopher Dydula, University of Toronto   -   18 May 2011
    Last Modification:  20 June 2011 by Christopher Dydula
 '''
 
+import os, json
 import PILBeadTracking2 as pbt
 import TrapAnalysis as ta
 import numpy as np
 import tkinter as tk
 import tkinter.filedialog as tfd
+from matplotlib import pyplot as plt
 
 def get_file(root):
     '''Ask for a filename and assign it to the global variable Tiff_file_name.
@@ -32,6 +34,33 @@ def get_dir(root):
     directory.set(tfd.askdirectory(
         parent=root,
         title='Select directory to save frames to...'))
+
+def write_analysis_info(k, delk):
+    # Write out:
+        # trap stiffness, error
+        # analysis params (spot diameter, min brightness, max displacement, start frame, stop frame, T, delT, pize, delpsize)
+        # file path (TIFF) and output directory
+    analysis_info = {
+        'trap_stiffness_N_m'       : k,
+        'delta_trap_stiffness_N_m' : delk,
+        'video_path'               : Tiff_file_name.get(),
+        'start_frame'              : start_frame.get(),
+        'stop_frame'               : stop_frame.get(),
+        'spot_radius'              : spot_size.get(),
+        'max_displacement'         : max_displacement.get(),
+        'min_net_brightness'       : min_net_brightness.get(),
+        'frame_directory'          : directory.get(),
+        'temperature_K'            : temp.get(),
+        'delta_temperature_K'      : deltemp.get(),
+        'pixel_size_um'            : psize.get(),
+        'delta_pixel_size_um'      : delpsize.get(),
+    }
+
+    with open(os.path.join(directory.get(), 'analysis_info.txt'), 'w') as f:
+        f.write(
+            json.dumps(analysis_info, indent=4, separators=(',', ': '))
+        ) # use json.loads to do the reverse
+
 
 def analyze():
     '''Collect the x and y positions of the bead to be tracked in each frame
@@ -73,7 +102,7 @@ def analyze():
 
     #___Displaying and saving the data___#
 
-    if display_frames.get() or save_frames.get():
+    if save_or_display.get() in ["Display frames", "Save frames"]:
         im = pbt.Image.open(Tiff_file_name.get())
         dialog_text.set(">>> Saving frames...")
 
@@ -86,7 +115,7 @@ def analyze():
                         " Close the popup to continue (may take a while if"
                         " not saving frames)")
         display = pbt.Display_Results(directory1, plot_title, start_frame.get(),
-                        stop_frame.get(), save_frames.get(), window)
+                        stop_frame.get(), save_or_display.get() == "Save frames", window)
         display.root.destroy()
 
     #___Analyzing the data___#
@@ -101,8 +130,19 @@ def analyze():
     # is holding the y positions of each frame. The remaining code may be
     # edited to analyze this data however one wishes.
 
+    # save raw position data (units of PIXELS here)
+    xy = np.column_stack([x, y])
+    np.savetxt(os.path.join(directory.get(), 'position_data.txt'), xy, delimiter='\t', header='x\ty\t', comments='')
+
     # r is the trap stiffness, delta is the error in the result
-    (r, x1, y1, delta) = ta.analyze(x, y, temp.get())
+    (r, delta, figs) = ta.analyze(x, y, temp.get(), psize.get(), deltemp.get(), delpsize.get())
+
+    figs[0].savefig(os.path.join(directory.get(), 'fig1.png'))
+    figs[1].savefig(os.path.join(directory.get(), 'fig2.png'))
+    plt.close('all')
+
+    # Write out analysis info for ease of reproducibility
+    write_analysis_info(r, delta)
 
     #dialog_text.set("The trap stiffness in the x direction is %9.4e N/m" % x1)
     #dialog_text.set(dialog_text.get()
@@ -244,13 +284,10 @@ if __name__ == "__main__":
     # Saved image parameters
     plot_title = Tiff_file_name.get().split('.')[0]+ \
                  ', frames %d-%d' % (start_frame.get(), stop_frame.get())
-    save_frames = tk.IntVar()
-    save_frames.set(0)
-    display_frames = tk.IntVar()
-    display_frames.set(1)
-    directory =tk.StringVar()
-    directory.set("Only necessary if 'Save frames' or 'Display frames' is"
-                  " selected")
+    save_or_display = tk.StringVar()
+    save_or_display.set("Display frames")
+    directory = tk.StringVar()
+    directory.set("Must select directory to output data, plots, and frames to")
 
     saved_frame = tk.Frame(outer_frame)
     saved_frame.grid(row=2, column=0, sticky=tk.W, pady=5)
@@ -260,13 +297,8 @@ if __name__ == "__main__":
                      font=("Helvetica", 8, "bold"))
     label.grid(row=0, column=0, sticky=tk.W, columnspan=4)
 
-    check = tk.Checkbutton(saved_frame, text='Save frames', \
-                           variable=save_frames)
-    check.grid(row=1, column=0, sticky=tk.W, padx=3)
-
-    check = tk.Checkbutton(saved_frame, text='Display frames', \
-                           variable=display_frames)
-    check.grid(row=1, column=1, sticky=tk.W, padx=3)
+    optmenu = tk.OptionMenu(saved_frame, save_or_display, "Display frames", "Save frames")
+    optmenu.grid(row=1, column=0)
 
     label = tk.Label(saved_frame, text="Directory to save to:")
     label.grid(row=1, column=2, padx=2, sticky=tk.W)
@@ -281,6 +313,12 @@ if __name__ == "__main__":
     # Trap analysis parameters
     temp = tk.DoubleVar()
     temp.set(293.15)
+    psize = tk.DoubleVar()
+    psize.set(0.0619) # approx 7/113
+    deltemp = tk.DoubleVar()
+    deltemp.set(5)
+    delpsize = tk.DoubleVar()
+    delpsize.set(0.0027) # approx |7*5/(113**2)|
     # add additional variables for trap analysis here
 
     trap_frame = tk.Frame(outer_frame)
@@ -296,11 +334,28 @@ if __name__ == "__main__":
     entry = tk.Entry(trap_frame, textvariable=temp, width=6)
     entry.grid(row=1, column=1, stick=tk.W)
 
+    label = tk.Label(trap_frame, text="Temperature Uncertainty (K):")
+    label.grid(row=2, column=0, sticky=tk.W)
+
+    entry = tk.Entry(trap_frame, textvariable=deltemp, width=6)
+    entry.grid(row=2, column=1, stick=tk.W)
+
+    label = tk.Label(trap_frame, text="Pixel size (micrometres):")
+    label.grid(row=3, column=0, sticky=tk.W)
+    
+    entry = tk.Entry(trap_frame, textvariable=psize, width=6)
+    entry.grid(row=3, column=1, sticky=tk.W)
+
+    label = tk.Label(trap_frame, text="Pixel size uncertainty (micrometres):")
+    label.grid(row=4, column=0, sticky=tk.W)
+    
+    entry = tk.Entry(trap_frame, textvariable=delpsize, width=6)
+    entry.grid(row=4, column=1, sticky=tk.W)
+
     # add additional widgets for entering values for variables here. Just follow
     # the above two widgets.
 
     # Start analysis button
-
     button_frame = tk.Frame(outer_frame)
     button_frame.grid(row=4, column=0, sticky=tk.W, pady=5)
 

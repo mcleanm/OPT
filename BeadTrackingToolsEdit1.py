@@ -49,7 +49,7 @@ class Display_Results(object):
         self.im_dir = im_dir
         self.root = Toplevel(master=parent)
 
-        track_image = Image.open(self.im_dir+ '\Frame%d.jpg' % (start_frame+1))
+        track_image = Image.open(os.path.join(self.im_dir, 'Frame%d.jpg' % (start_frame+1)))
         self.tk_track = ImageTk.PhotoImage(track_image)
         xsize, ysize = track_image.size
         
@@ -73,7 +73,7 @@ class Display_Results(object):
         self.root.mainloop()
 
     def update_image(self, frame_num):
-        track_image = Image.open(self.im_dir+ '\Frame%d.jpg' % (int(frame_num)+1))
+        track_image = Image.open(os.path.join(self.im_dir, 'Frame%d.jpg' % (int(frame_num)+1)))
         self.tk_track.paste(track_image)
         
     def del_dir(self):
@@ -96,7 +96,7 @@ def save_frame(im, directory, track, start_frame, end_frame, dot_size):
     i = 1
     
     while os.path.exists(directory1):
-        directory1 = directory + '-' + str(i)
+        directory1 = os.path.join(directory, '-' + str(i))
         i += 1
 
     os.makedirs(directory1)
@@ -115,7 +115,7 @@ def save_frame(im, directory, track, start_frame, end_frame, dot_size):
             draw = ImageDraw.Draw(frame)
             draw.rectangle((x-d, y-d, x+d, y+d), fill = 'Blue')
             #saving the image in the directory under the name 'Framej.jpg'                  
-            frame.save(directory1 + '\Frame%d.jpg' % (j+1))
+            frame.save(os.path.join(directory1, 'Frame%d.jpg' % (j+1)))
 
         j += 1
 

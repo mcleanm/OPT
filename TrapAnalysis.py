@@ -33,13 +33,15 @@ def positions_plot(x, y, frames):
 
     fig = plt.figure(1)
     ax = Axes3D(fig)
-    ax.scatter(x, y, frames, label='Positions')
+    ax.scatter(x, y, frames, label='Positions', c=frames)
     #ax.legend(loc=9) # legend is placed at top centre, acts as title
 
     ax.set_xlabel('x (m)')
     ax.set_ylabel('y (m)')
     ax.set_zlabel('Frame')
+    ax.set_title('Position vs. frame')
 
+    return fig
    # my_show()
 
 def disp_v_frame(direc, frames, varp, name):
@@ -60,15 +62,15 @@ def disp_v_frame(direc, frames, varp, name):
     plt.xlabel('Frame')
     if name == 'x':
         plt.ylabel('x (m)')
-        plt.title('x displacement vs frame')
+        plt.title('x displacement vs. frame')
         plt.legend(('x for individual frames', '$<x^2>$ = %9.4e' % varp[0]))
     elif name == 'y':
         plt.ylabel('y (m)')
-        plt.title('y displacement vs frame')
+        plt.title('y displacement vs. frame')
         plt.legend(('y for individual frames', '$<y^2>$ = %9.4e' % varp[0]))
     elif name == 'r':
         plt.ylabel('$r^2 (m^2)$')
-        plt.title('Radial displacement vs frame')
+        plt.title('Radial displacement vs. frame')
         plt.legend(('$r^2$ for individual frames', '$<r^2>$ = %9.4e' % varp[0]))
     plt.grid()
 
@@ -103,7 +105,7 @@ def rms(x):
     '''
     return (np.sum(x**2) / np.size(x)) ** (0.5)
 
-def analyze(x, y, temp):
+def analyze(x, y, temp, psize_um, deltemp, delpsize_um):
     '''Given x and y pixel position data of a bead from a video, convert
        pixel units to metric. Produce 7 plots in two figure windows, a 3d
        position plot in the first and 3 position plots and 3 displacement
@@ -111,72 +113,47 @@ def analyze(x, y, temp):
        stiffness in the x, y and radial direction.
 
        x: array_like
-          Array containing the x positions
+          Array containing the x positions (pixels)
        y: array_like
-          Array containing the y positions
+          Array containing the y positions (pixels)
 
        x and y must be of the same length
     '''
+    kb = 1.38065e-23 # [m^2*kg*s^-2*K^-1], boltzmann constant
+    T = temp # [K], temperature in room at time of recording of video
+    delT = deltemp
+    degfree = 2 # number of degrees of freedom
 
-    errxpx = np.std(x)
-    errypx = np.std(y)
-    x1 = x
-    y1 = y
-
-    # every 14.5 pixels in the image is one micrometre, approximately
+    # pixel sizes and uncertainties in metres
+    # by default, every 14.5 pixels in the image is one micrometre, approximately
     # (1 micrometre is 14.5 +/- 0.3 px)
-    x /= (14.5 * 1e6)
-    y /= (14.5 * 1e6)
-    errx = ( (errxpx/(14.5*1e6))**2 + (x1*0.3 / (14.5**2 * 1e6))**2 ) ** (0.5)
-    erry = ( (errypx/(14.5*1e6))**2 + (y1*0.3 / (14.5**2 * 1e6))**2 ) ** (0.5)
+    psize_m = psize_um * 1e-6
+    delpsize_m = delpsize_um * 1e-6
 
-    # center positions about the origin
+    # zero-mean postions in metres
     x -= np.mean(x)
     y -= np.mean(y)
+    x_m = x * psize_m
+    y_m = y * psize_m
+    # x_m -= np.mean(x_m)
+    # y_m -= np.mean(y_m)
 
-    # create vectors of the squares of the x and y positions
-    x2 = x**2
-    y2 = y**2
+    # use the standard deviations of x, y as proxies for the pixel uncertainties
+    errxpx = np.std(x)
+    errypx = np.std(y)
 
-    # find the square of the radial displacement from the origin in each frame
-    r2 = x2 + y2
+    # uncertainties in x, y values (metres)
+    delx_m = ( (psize_m * errxpx)**2 + (x * delpsize_m)**2 )**(0.5)
+    dely_m = ( (psize_m * errypx)**2 + (y * delpsize_m)**2 )**(0.5)
 
-    # find the variance of the x, y and radial displacements
-    xvar = np.var(x)
-    yvar = np.var(y)
-    rvar = np.var(r2**(.5))
+    # uncertainty in <r^2>
+    delrvar_m = (2/(np.size(x))) * ( np.sum((delx_m*x_m)**2) + np.sum((dely_m*y_m)**2) )**(0.5)
 
-    # error analysis
-    
-    #errx = np.std(x)
-    #erry = np.std(y)
-
-    r = r2 ** (.5)
-    delr = ((x2 * errx**2 + y2 * erry**2) / (x2 + y2)) ** (.5)
-
-    delmeanr = (np.sum((delr / np.size(r)) ** 2)) ** (.5)
-
-    delrvar = (np.sum(((r - np.mean(r)) * delr * 2 / (np.size(r)-1) ) ** 2)) \
-              ** (0.5)        
-
-    kb = 1.38065e-23
-    delT = 5
-    T = temp
-
-    delk = ((kb * delT / rvar) ** 2 + (kb * T * delrvar / rvar**2) ** 2) ** (.5)
-    '''
-    r = r2**(0.5)
-    sigma = np.std(r)
-
-    delrvar = (2*sigma**4)/(np.size(r) - 1)
-
-    kb = 1.38065e-23
-    delT = 0
-    T = temp
-
-    delk = ((kb * delT / rvar) ** 2 + (kb * T * delrvar / rvar**2) ** 2) ** (.5)
-    '''
-
+    # calculate <r^2> and trap stiffness
+    r2 = x_m**2 + y_m**2
+    rvar = np.sum(r2) / (np.size(r2)) # - 1)
+    delk = degfree * kb * np.sqrt( (delT/rvar)**2 + (T*delrvar_m/(rvar**2))**2 )
+    ktrap = degfree * kb * T / rvar
 
     # create a frame vector
     n = np.size(x)
@@ -190,43 +167,36 @@ def analyze(x, y, temp):
     mpl.rcParams['ytick.labelsize'] = 8
     mpl.rcParams['xtick.labelsize'] = 8
     mpl.rcParams['font.size'] = 10
-    positions_plot(x, y, frames)
+    fig1 = positions_plot(x_m, y_m, frames)
 
     # plot the x, y and radial displacements vs frame as well as histograms
     # of the x, y and radial distributions in the same figure
-    fig2 = plt.figure(2)
+    fig2 = plt.figure(2, figsize=(12,8))
 
+    xvar = np.var(x_m)
+    yvar = np.var(y_m)
+    rvar = rvar
     xvarp = xvar * np.ones((n,1)) # a vector with n xvar's
     yvarp = yvar * np.ones((n,1)) # a vector with n yvar's
     rvarp = rvar * np.ones((n,1)) # a vector with n rvar's
 
     plt.subplot(2,3,1)
-    disp_v_frame(x, frames, xvarp, 'x')
+    disp_v_frame(x_m, frames, xvarp, 'x')
     plt.subplot(2,3,2)
-    disp_v_frame(y, frames, yvarp, 'y')
+    disp_v_frame(y_m, frames, yvarp, 'y')
     plt.subplot(2,3,3)
     disp_v_frame(r2, frames, rvarp, 'r')
 
-    bins = 15 # the number of bins for the histograms; may be changed
+    bins = n // 10 # the number of bins for the histograms; may be changed
 
     plt.subplot(2,3,4)
-    disp_distr(x, bins, 'x')
+    disp_distr(x_m, bins, 'x')
     plt.subplot(2,3,5)
-    disp_distr(y, bins, 'y')
+    disp_distr(y_m, bins, 'y')
     plt.subplot(2,3,6)
     disp_distr(r2, bins, 'r')
+    plt.tight_layout()
 
-    #my_show()
+    figs = [fig1, fig2]
 
-    # calculate the trap stiffness using equipartition theorem
-    kb = 1.38065e-23 # [m^2*kg*s^-2*K^-1], boltzmann constant
-    T = temp # [K], temperature in room at time of recording of video
-    degfree = 2 # number of degrees of freedom
-
-    stiffnessx = kb * T / xvar
-    stiffnessy = kb * T / yvar
-    stiffness = degfree * kb * T / rvar
-
-    delk = 0 # error analysis above is incorrect; if fixed, erase this line
-
-    return stiffness, stiffnessx, stiffnessy, delk
+    return ktrap, delk, figs
