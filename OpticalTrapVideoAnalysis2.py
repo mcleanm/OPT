@@ -16,6 +16,7 @@ import TrapAnalysis as ta
 import numpy as np
 import tkinter as tk
 import tkinter.filedialog as tfd
+from matplotlib import pyplot as plt
 
 def get_file(root):
     '''Ask for a filename and assign it to the global variable Tiff_file_name.
@@ -138,6 +139,7 @@ def analyze():
 
     figs[0].savefig(os.path.join(directory.get(), 'fig1.png'))
     figs[1].savefig(os.path.join(directory.get(), 'fig2.png'))
+    plt.close('all')
 
     # Write out analysis info for ease of reproducibility
     write_analysis_info(r, delta)
